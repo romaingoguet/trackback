@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import fetch from 'node-fetch';
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -33,16 +33,18 @@ interface CommentsResponse {
 
 @Injectable()
 export class VideoAnalysisService {
-  private readonly logger = new Logger(VideoAnalysisService.name);
+
   private readonly baseApiUrl = 'https://www.googleapis.com/youtube/v3';
   private readonly apiKey = process.env.YOUTUBE_API_KEY || '';
-  
+
   private contextCache = new Map<string, CachedVideoContext>();
   private cacheMaxAge = 60 * 5; // 5 minutes
 
   async analyzeVideo(url: string): Promise<VideoContext> {
+    console.log('[VideoAnalysisService] Analyzing video URL:', url);
+
     let videoId = this.extractVideoId(url);
-    
+
     if (!videoId) {
       throw new Error('Invalid YouTube URL. Please provide a valid YouTube video link.');
     }
@@ -53,6 +55,7 @@ export class VideoAnalysisService {
     }
 
     try {
+      console.log('[VideoAnalysisService] Fetching video data for:', videoId);
       const [videoData, commentsResponse] = await Promise.all([
         this.fetchVideoData(videoId),
         this.fetchComments(videoId),
@@ -79,23 +82,23 @@ export class VideoAnalysisService {
         video,
         cachedAt: Date.now(),
       };
-      
+
       this.contextCache.set(videoId, cachedContext);
 
       return video;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to analyze video ${videoId}: ${errorMsg}`);
-      
+      console.error('[VideoAnalysisService] Failed to analyze video:', errorMsg);
+
       this.contextCache.delete(videoId);
-      
+
       throw new Error(`Failed to analyze YouTube video: ${errorMsg}`);
     }
   }
 
   async getContextById(videoId: string): Promise<VideoContext> {
     const cached = this.contextCache.get(videoId);
-    
+
     if (cached && !this.isCacheExpired(cached)) {
       return cached.video;
     }
@@ -112,9 +115,11 @@ export class VideoAnalysisService {
     });
 
     const url = `${this.baseApiUrl}/videos?${params.toString()}`;
-    
+
+    console.log('[VideoAnalysisService] Fetching video data from:', url);
+
     const response = await this.retryRequest(url);
-    
+
     if (!response || (response as any).status !== 200) {
       throw new Error(`YouTube API request failed: ${(response as any)?.statusText || 'Unknown error'}`);
     }
@@ -124,56 +129,96 @@ export class VideoAnalysisService {
   }
 
   private async fetchComments(videoId: string): Promise<CommentsResponse> {
+    console.log('[VideoAnalysisService] Attempting to fetch comments for video:', videoId);
+
+    // YouTube Comments API v3 requires filter parameter (parentId or id)
+    // Note: Top-level comments cannot be fetched without a specific comment ID or reply parent ID
     const params = new URLSearchParams({
-      part: 'snippet,replies',
+      part: 'snippet',
       videoId: videoId,
       maxResults: '25',
       textFormat: 'plainText',
-      commentType: 'comment',
+      parentId: '',
       key: this.apiKey,
     });
 
-    const url = `${this.baseApiUrl}/comments?${params.toString()}`;
-    
-    const response = await this.retryRequest(url);
-    
-    if (!response || (response as any).status !== 200) {
-      return { items: [] };
-    }
+    const url = `${this.baseApiUrl}/commentThreads?${params.toString()}`;
 
-    const data = await response.json();
-    return { items: (data.items || []).map((item: any) => this.mapComment(item)) };
+    try {
+      console.log('[VideoAnalysisService] Comments API URL:', url);
+
+      const response = await this.retryRequest(url);
+
+      if (!response) {
+        console.warn('[VideoAnalysisService] No response from comments API');
+        return { items: [] };
+      }
+
+      const status = (response as any).status || 0;
+      console.log('[VideoAnalysisService] Comments API status:', status);
+
+      if (status !== 200) {
+        const statusText = (response as any).statusText || '';
+        console.warn('[VideoAnalysisService] Comments API error:', status, statusText);
+        return { items: [] };
+      }
+
+      const data = await response.json();
+      console.log(data)
+      const items = data.items || [];
+
+      if (items.length === 0) {
+        console.log('[VideoAnalysisService] No comments found for video');
+      } else {
+        console.log(`[VideoAnalysisService] Found ${items.length} comments`);
+      }
+
+      return { items: items.map((item: any) => this.mapComment(item)) };
+    } catch (error) {
+      console.error('[VideoAnalysisService] Error fetching comments:', error);
+      throw error;
+    }
   }
 
   private extractVideoId(url: string): string | null {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=)([^&\s]+)/i,
-      /youtu\.be\/([^?\s]+)/i,
-      /\/embed\/([^"\s]+)/i,
-      /v=([^"&\s]+)/i,
-    ];
+    console.log('[VideoAnalysisService] Extracting video ID from:', url);
 
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match && match[1]) {
-        return match[1].trim();
-      }
+    // Try main pattern: youtube.com/watch?v=VIDEO_ID
+    const match1 = url.match(/(?:youtube\.com\/watch\?v=)([^&\s]+)/);
+    if (match1 && match1[1]) {
+      console.log('[VideoAnalysisService] Pattern 1 matched, extracted:', match1[1].trim());
+      return match1[1].trim();
     }
 
+    // Try pattern: youtu.be/VIDEO_ID
+    const match2 = url.match(/youtu\.be\/([^?\s]+)/);
+    if (match2 && match2[1]) {
+      console.log('[VideoAnalysisService] Pattern 2 matched, extracted:', match2[1].trim());
+      return match2[1].trim();
+    }
+
+    // Try pattern: /embed/VIDEO_ID
+    const match3 = url.match(/\/embed\/([^"\s]+)/);
+    if (match3 && match3[1]) {
+      console.log('[VideoAnalysisService] Pattern 3 matched, extracted:', match3[1].trim());
+      return match3[1].trim();
+    }
+
+    console.warn('[VideoAnalysisService] Could not extract video ID from URL');
     return null;
   }
 
   private parseDuration(durationString?: string): number {
     if (!durationString) return 0;
-    
+
     const match = durationString.match(/PT?(\d+H)?(\d+M)?(\d+S)?/);
-    
+
     if (!match) return 0;
-    
+
     const hours = parseInt((match[1] || '').replace('H', '')) * 3600;
     const minutes = parseInt((match[2] || '').replace('M', '')) * 60;
     const seconds = parseInt((match[3] || '') || '0');
-    
+
     return hours + minutes + seconds;
   }
 
@@ -185,26 +230,27 @@ export class VideoAnalysisService {
 
   private mapComment(item: any): TopComment {
     const snippet = item.snippet || {};
-    
-    // Check if there are replies, get top reply if available
-    let topLevelComment = null;
-    if (snippet.topLevelComment?.snippet) {
-      topLevelComment = snippet.topLevelComment.snippet;
+
+    let textDisplay = '';
+    if (snippet.textDisplay) {
+      textDisplay = snippet.textDisplay;
+    } else if (snippet.topLevelComment?.snippet?.textDisplay) {
+      textDisplay = snippet.topLevelComment.snippet.textDisplay;
     } else if (snippet.commentText) {
-      topLevelComment = { commentText: snippet.commentText };
+      textDisplay = snippet.commentText;
     }
 
-    const authorName = topLevelComment?.authorName || snippet.authorDisplayName || 'Unknown';
-    const publishedAt = topLevelComment?.publishedAt || '';
+    const topLevel = snippet.topLevelComment?.snippet || { authorName: '' };
+    const authorName = topLevel.authorName || snippet.authorDisplayName || 'Unknown';
 
     return {
       id: item.id,
       authorName,
-      authorChannelId: topLevelComment?.authorChannelId || '',
-      authorProfileImageUrl: topLevelComment?.authorProfileImageUrl || '',
-      textDisplay: topLevelComment?.textDisplay || '',
+      authorChannelId: topLevel.authorChannelId || '',
+      authorProfileImageUrl: topLevel.authorProfileImageUrl || '',
+      textDisplay,
       likeCount: snippet.likeCount ? parseInt(snippet.likeCount) : null,
-      publishedAt,
+      publishedAt: topLevel.publishedAt || '',
     };
   }
 
@@ -217,27 +263,28 @@ export class VideoAnalysisService {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
+
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
-        
+
         if (response.status === 401) {
           throw new Error('YouTube API: Invalid API key');
         }
         if (response.status === 403) {
           throw new Error('YouTube API: Quota exceeded or invalid credentials');
         }
-        
+
         return response;
       } catch (error) {
         if (attempt < 3) {
+          console.warn(`[VideoAnalysisService] Retry ${attempt}/3 for:`, url);
           await this.delay(1000 * Math.pow(2, attempt - 1));
         } else {
           throw error instanceof Error ? error : new Error('Request failed after retries');
         }
       }
     }
-    
+
     throw new Error('Request failed after retries');
   }
 
@@ -245,7 +292,6 @@ export class VideoAnalysisService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // Get API key info for debugging
   getApiKeyStatus(): { hasKey: boolean; keyLength: number } {
     return {
       hasKey: this.apiKey.length > 0,
@@ -253,7 +299,6 @@ export class VideoAnalysisService {
     };
   }
 
-  // Get cache stats
   getCacheStats(): { cachedVideos: number; maxAgeMinutes: number } {
     return {
       cachedVideos: this.contextCache.size,

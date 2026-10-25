@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body } from '@nestjs/common';
 import { VideoAnalysisService } from '../service/videoAnalysis.service';
 import { VideoContext } from '../dto/video.dto';
 
@@ -12,7 +12,7 @@ export class VideoController {
 
   @Post('analyze')
   async analyzeVideo(
-    url: string,
+    @Body('url') url: string,
   ): Promise<{ success: boolean; video: VideoContext | null; error?: string }> {
     try {
       const video = await this.service.analyzeVideo(url);
