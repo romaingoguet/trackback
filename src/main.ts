@@ -45,7 +45,7 @@ async function bootstrap() {
     next();
   });
 
-  const port = process.env.PORT || 3010;
+  const port = parseInt(process.env.PORT || '3000', 10);
   await app.listen(port);
 
   console.log(`\n🚀 TrackBack running at http://localhost:${port}`);
