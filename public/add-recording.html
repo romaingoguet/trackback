@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Recording - TrackBack</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #1a1a2e;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        p.subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s;
+            background: #fff;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #4a90d9;
+            box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .time-display {
+            font-size: 13px;
+            color: #666;
+            margin-top: -8px;
+            margin-bottom: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 144, 217, 0.4);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #999;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Add Recording</h1>
+        <p class="subtitle">Track a track you heard on a YouTube DJ set</p>
+
+        <form id="addForm">
+            <div class="form-group">
+                <label for="youtubeUrl">YouTube Set Link *</label>
+                <input type="url" id="youtubeUrl" name="youtubeUrl" placeholder="https://youtube.com/watch?v=..."
+                    required autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label for="timestamp">When did you hear it?</label>
+                <input type="text" id="timestamp" name="timestamp" placeholder="MM:SS or HH:MM:SS" value="00:00"
+                    required pattern="\d+:\d+(?::\d+)?">
+                <div class="time-display">Format: 2:30, 5:45, or 1:23:45</div>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">Notes (optional)</label>
+                <textarea id="notes" name="notes" placeholder="Your thoughts about this track..."></textarea>
+            </div>
+
+            <button type="submit">Save Recording</button>
+        </form>
+
+        <div class="footer">
+            After saving, find the track on Discogs, Bandcamp, or other platforms.
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('addForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const url = document.getElementById('youtubeUrl').value;
+            const timestamp = document.getElementById('timestamp').value;
+            const notes = document.getElementById('notes').value;
+
+            if (!url.match(/^https:\/\/(www\.)?youtube\.com\/(?:watch\?v=|shorts\/|embed\/)[^\s/$.?#].[^\s]*/)) {
+                alert('Please enter a valid YouTube URL');
+                return;
+            }
+
+            let formatted = timestamp.trim();
+            if (formatted.startsWith('0')) formatted = formatted.substring(1);
+            if (!/^\d{1,2}:\d{2}(?::\d{2})?$/.test(formatted)) {
+                alert('Please enter a valid timestamp like 2:30 or 5:45');
+                return;
+            }
+
+            try {
+                const response = await fetch('/recordings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, timestamp: formatted, notes })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('addForm').reset();
+                    document.getElementById('timestamp').value = '00:00';
+
+                    alert('✅ Recording saved successfully!');
+                    window.location.href = '/';
+                } else {
+                    alert('Error: ' + (result.error || response.statusText));
+                }
+            } catch (error) {
+                alert('Network error. Make sure the server is running.');
+            }
+        });
+
+        document.getElementById('timestamp').addEventListener('input', (e) => {
+            let val = e.target.value.replace(/[^0-9:]/g, '').trim();
+            if (!val) return;
+            const parts = val.split(':');
+            if (parts.length > 3) return;
+            parts[parts.length - 1] = parts[parts.length - 1].padStart(2, '0');
+            if (parts.length >= 2) parts[parts.length - 2] = parts[parts.length - 2].padStart(2, '0');
+            e.target.value = parts.join(':');
+        });
+    </script>
+</body>
+
+</html>
