@@ -136,9 +136,10 @@ export class VideoAnalysisService {
     const params = new URLSearchParams({
       part: 'snippet',
       videoId: videoId,
-      maxResults: '25',
+      maxResults: '70',
       textFormat: 'plainText',
       parentId: '',
+      order: 'relevance',
       key: this.apiKey,
     });
 
@@ -241,13 +242,9 @@ export class VideoAnalysisService {
     }
 
     const topLevel = snippet.topLevelComment?.snippet || { authorName: '' };
-    const authorName = topLevel.authorName || snippet.authorDisplayName || 'Unknown';
 
     return {
       id: item.id,
-      authorName,
-      authorChannelId: topLevel.authorChannelId || '',
-      authorProfileImageUrl: topLevel.authorProfileImageUrl || '',
       textDisplay,
       likeCount: snippet.likeCount ? parseInt(snippet.likeCount) : null,
       publishedAt: topLevel.publishedAt || '',
