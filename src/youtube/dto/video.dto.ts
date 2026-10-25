@@ -16,9 +16,6 @@ export interface VideoContext {
 
 export interface TopComment {
   id: string;
-  authorName: string;
-  authorChannelId: string;
-  authorProfileImageUrl: string;
   textDisplay: string;
   likeCount: number | null;
   publishedAt: string;
@@ -65,7 +62,7 @@ export interface VideoItem {
     dimension: string;
     definition: string;
     caption: boolean;
-   licensedContent?: boolean;
+    licensedContent?: boolean;
     projection?: string;
     hasCustomThumbnail?: boolean;
   };
