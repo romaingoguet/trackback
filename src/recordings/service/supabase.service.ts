@@ -10,6 +10,9 @@ export class TrackCandidatesService {
   async saveTrackCandidate(data: CreateTrackCandidateDto): Promise<TrackCandidate> {
     const { youtubeLink, timestamp, note } = data;
 
+    console.log(youtubeLink)
+    console.log(timestamp)
+
     try {
       const supabase = SupabaseService.supabase;
       const { data: inserted, error } = await supabase
@@ -43,7 +46,7 @@ export class TrackCandidatesService {
     try {
       const supabase = SupabaseService.supabase;
       const data = await supabase.from(this.tableName).select('*').order('created_at', { ascending: false });
-      
+
       // Handle Supabase response format
       if (Array.isArray(data)) {
         return data;
@@ -65,7 +68,7 @@ export class TrackCandidatesService {
     try {
       const supabase = SupabaseService.supabase;
       const result = await supabase.from(this.tableName).select('*').eq('id', id).single();
-      
+
       // Handle Supabase response format for failures
       if ('error' in result && result.error) {
         return { error: String(result.error.message || result.error) };
@@ -128,7 +131,7 @@ export class TrackCandidatesService {
     try {
       const supabase = SupabaseService.supabase;
       const data = await supabase.from(this.tableName).select('*').ilike('youtube_link', `${prefix}%`);
-      
+
       // Handle Supabase response format
       if (Array.isArray(data)) {
         return data;

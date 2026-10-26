@@ -1,55 +1,39 @@
-import { Injectable } from '@nestjs/common';
-import fetch from 'node-fetch';
 import * as dotenv from 'dotenv';
 dotenv.config();
-import { VideoContext, TopComment } from '../dto/video.dto';
 
-interface CachedVideoContext {
-  video: VideoContext;
-  cachedAt: number;
-}
+let _instance: any = null;
 
-interface VideoItem {
+interface TopComment {
   id: string;
-  snippet?: {
-    title: string | null;
-    description: string | null;
-    thumbnails: { default: { url: string }; medium?: { url: string }; high?: { url: string } };
-    publishedAt: string | null;
-    channelTitle: string | null;
-    channelId: string | null;
-  };
-  contentDetails?: { duration: string };
-  statistics?: {
-    viewCount: string | null;
-    likeCount: string | null;
-    commentCount: string | null;
-  };
+  textDisplay: string;
+  likeCount: number | null;
+  publishedAt: string;
 }
 
-interface CommentsResponse {
-  items: TopComment[];
-}
-
-@Injectable()
 export class VideoAnalysisService {
+  static setInstance(instance: any): void {
+    _instance = instance;
+  }
+
+  static getInstance(): any {
+    if (!_instance) {
+      throw new Error('VideoAnalysisService not initialized');
+    }
+    return _instance;
+  }
 
   private readonly baseApiUrl = 'https://www.googleapis.com/youtube/v3';
   private readonly apiKey = process.env.YOUTUBE_API_KEY || '';
 
-  private contextCache = new Map<string, CachedVideoContext>();
-  private cacheMaxAge = 60 * 5; // 5 minutes
-
-  async analyzeVideo(url: string): Promise<VideoContext> {
+  async analyzeVideo(url: string): Promise<any> {
     console.log('[VideoAnalysisService] Analyzing video URL:', url);
-
     let videoId = this.extractVideoId(url);
 
     if (!videoId) {
       throw new Error('Invalid YouTube URL. Please provide a valid YouTube video link.');
     }
 
-    const cached = this.contextCache.get(videoId);
+    const cached = (this as any).contextCache?.get(videoId);
     if (cached && !this.isCacheExpired(cached)) {
       return cached.video;
     }
@@ -61,7 +45,7 @@ export class VideoAnalysisService {
         this.fetchComments(videoId),
       ]);
 
-      const video: VideoContext = {
+      return {
         id: videoData.id || '',
         url: url,
         title: videoData.snippet?.title || '',
@@ -74,107 +58,56 @@ export class VideoAnalysisService {
         channelTitle: videoData.snippet?.channelTitle || '',
         channelId: videoData.snippet?.channelId || '',
         thumbnailUrl: this.getBestThumbnail(videoData.snippet?.thumbnails),
-        comments: commentsResponse.items || [],
+        comments: (commentsResponse.items || []).map((item: any) => this.mapComment(item)),
       };
-
-      // Cache with timestamp
-      const cachedContext: CachedVideoContext = {
-        video,
-        cachedAt: Date.now(),
-      };
-
-      this.contextCache.set(videoId, cachedContext);
-
-      return video;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('[VideoAnalysisService] Failed to analyze video:', errorMsg);
-
-      this.contextCache.delete(videoId);
-
       throw new Error(`Failed to analyze YouTube video: ${errorMsg}`);
     }
   }
 
-  async getContextById(videoId: string): Promise<VideoContext> {
-    const cached = this.contextCache.get(videoId);
-
-    if (cached && !this.isCacheExpired(cached)) {
-      return cached.video;
-    }
-
+  async getContextById(videoId: string): Promise<any> {
     return this.analyzeVideo(`https://www.youtube.com/watch?v=${videoId}`);
   }
 
-  private async fetchVideoData(videoId: string): Promise<VideoItem> {
+  private async fetchVideoData(videoId: string): Promise<any> {
     const params = new URLSearchParams({
       part: 'snippet,statistics,contentDetails',
       id: videoId,
       maxResults: '1',
       key: this.apiKey,
     });
+    const urlStr = `${this.baseApiUrl}/videos?${params.toString()}`;
 
-    const url = `${this.baseApiUrl}/videos?${params.toString()}`;
-
-    console.log('[VideoAnalysisService] Fetching video data from:', url);
-
-    const response = await this.retryRequest(url);
-
+    const response = await this.retryRequest(urlStr);
     if (!response || (response as any).status !== 200) {
       throw new Error(`YouTube API request failed: ${(response as any)?.statusText || 'Unknown error'}`);
     }
 
     const data = await response.json();
-    return data.items ? data.items[0] : {} as VideoItem;
+    return data.items ? data.items[0] : {};
   }
 
-  private async fetchComments(videoId: string): Promise<CommentsResponse> {
-    console.log('[VideoAnalysisService] Attempting to fetch comments for video:', videoId);
-
-    // YouTube Comments API v3 requires filter parameter (parentId or id)
-    // Note: Top-level comments cannot be fetched without a specific comment ID or reply parent ID
+  private async fetchComments(videoId: string): Promise<any> {
     const params = new URLSearchParams({
       part: 'snippet',
       videoId: videoId,
       maxResults: '70',
       textFormat: 'plainText',
-      parentId: '',
-      order: 'relevance',
       key: this.apiKey,
     });
-
-    const url = `${this.baseApiUrl}/commentThreads?${params.toString()}`;
+    const urlStr = `${this.baseApiUrl}/comments?${params.toString()}`;
 
     try {
-      console.log('[VideoAnalysisService] Comments API URL:', url);
-
-      const response = await this.retryRequest(url);
-
-      if (!response) {
-        console.warn('[VideoAnalysisService] No response from comments API');
-        return { items: [] };
-      }
+      const response = await this.retryRequest(urlStr);
+      if (!response) return {};
 
       const status = (response as any).status || 0;
-      console.log('[VideoAnalysisService] Comments API status:', status);
-
-      if (status !== 200) {
-        const statusText = (response as any).statusText || '';
-        console.warn('[VideoAnalysisService] Comments API error:', status, statusText);
-        return { items: [] };
-      }
+      if (status !== 200) return {};
 
       const data = await response.json();
-      console.log(data)
-      const items = data.items || [];
-
-      if (items.length === 0) {
-        console.log('[VideoAnalysisService] No comments found for video');
-      } else {
-        console.log(`[VideoAnalysisService] Found ${items.length} comments`);
-      }
-
-      return { items: items.map((item: any) => this.mapComment(item)) };
+      return { items: data.items };
     } catch (error) {
       console.error('[VideoAnalysisService] Error fetching comments:', error);
       throw error;
@@ -182,28 +115,14 @@ export class VideoAnalysisService {
   }
 
   private extractVideoId(url: string): string | null {
-    console.log('[VideoAnalysisService] Extracting video ID from:', url);
-
-    // Try main pattern: youtube.com/watch?v=VIDEO_ID
     const match1 = url.match(/(?:youtube\.com\/watch\?v=)([^&\s]+)/);
-    if (match1 && match1[1]) {
-      console.log('[VideoAnalysisService] Pattern 1 matched, extracted:', match1[1].trim());
-      return match1[1].trim();
-    }
-
-    // Try pattern: youtu.be/VIDEO_ID
+    if (match1 && match1[1]) return match1[1].trim();
+    
     const match2 = url.match(/youtu\.be\/([^?\s]+)/);
-    if (match2 && match2[1]) {
-      console.log('[VideoAnalysisService] Pattern 2 matched, extracted:', match2[1].trim());
-      return match2[1].trim();
-    }
-
-    // Try pattern: /embed/VIDEO_ID
+    if (match2 && match2[1]) return match2[1].trim();
+    
     const match3 = url.match(/\/embed\/([^"\s]+)/);
-    if (match3 && match3[1]) {
-      console.log('[VideoAnalysisService] Pattern 3 matched, extracted:', match3[1].trim());
-      return match3[1].trim();
-    }
+    if (match3 && match3[1]) return match3[1].trim();
 
     console.warn('[VideoAnalysisService] Could not extract video ID from URL');
     return null;
@@ -211,16 +130,11 @@ export class VideoAnalysisService {
 
   private parseDuration(durationString?: string): number {
     if (!durationString) return 0;
-
     const match = durationString.match(/PT?(\d+H)?(\d+M)?(\d+S)?/);
-
     if (!match) return 0;
-
-    const hours = parseInt((match[1] || '').replace('H', '')) * 3600;
-    const minutes = parseInt((match[2] || '').replace('M', '')) * 60;
-    const seconds = parseInt((match[3] || '') || '0');
-
-    return hours + minutes + seconds;
+    return parseInt(match[1]?.replace('H', '') || '0') * 3600 +
+      parseInt(match[2]?.replace('M', '') || '0') * 60 +
+      parseInt(match[3] || '0');
   }
 
   private getBestThumbnail(thumbnails?: { default?: { url: string }; medium?: { url: string }; high?: { url: string } }): string {
@@ -231,17 +145,15 @@ export class VideoAnalysisService {
 
   private mapComment(item: any): TopComment {
     const snippet = item.snippet || {};
-
     let textDisplay = '';
+    
     if (snippet.textDisplay) {
       textDisplay = snippet.textDisplay;
     } else if (snippet.topLevelComment?.snippet?.textDisplay) {
       textDisplay = snippet.topLevelComment.snippet.textDisplay;
-    } else if (snippet.commentText) {
-      textDisplay = snippet.commentText;
     }
 
-    const topLevel = snippet.topLevelComment?.snippet || { authorName: '' };
+    const topLevel = snippet.topLevelComment?.snippet || { publishedAt: '' };
 
     return {
       id: item.id,
@@ -252,7 +164,7 @@ export class VideoAnalysisService {
   }
 
   private isCacheExpired(item: { cachedAt: number }): boolean {
-    return Date.now() - item.cachedAt > this.cacheMaxAge * 1000;
+    return Date.now() - item.cachedAt > (60 * 5) * 1000;
   }
 
   private async retryRequest(url: string): Promise<any> {
@@ -260,46 +172,25 @@ export class VideoAnalysisService {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
-
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
 
-        if (response.status === 401) {
-          throw new Error('YouTube API: Invalid API key');
-        }
-        if (response.status === 403) {
-          throw new Error('YouTube API: Quota exceeded or invalid credentials');
-        }
+        if (response.status === 401) throw new Error('YouTube API: Invalid API key');
+        if (response.status === 403) throw new Error('YouTube API: Quota exceeded or invalid credentials');
 
         return response;
       } catch (error) {
         if (attempt < 3) {
-          console.warn(`[VideoAnalysisService] Retry ${attempt}/3 for:`, url);
           await this.delay(1000 * Math.pow(2, attempt - 1));
         } else {
           throw error instanceof Error ? error : new Error('Request failed after retries');
         }
       }
     }
-
     throw new Error('Request failed after retries');
   }
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  getApiKeyStatus(): { hasKey: boolean; keyLength: number } {
-    return {
-      hasKey: this.apiKey.length > 0,
-      keyLength: this.apiKey.length,
-    };
-  }
-
-  getCacheStats(): { cachedVideos: number; maxAgeMinutes: number } {
-    return {
-      cachedVideos: this.contextCache.size,
-      maxAgeMinutes: this.cacheMaxAge / 60000,
-    };
   }
 }

@@ -12,6 +12,7 @@ export class TrackCandidatesController {
 
   @Post()
   async saveTrackCandidate(@Body() data: CreateTrackCandidateDto): Promise<{ message: string }> {
+    console.log(data)
     await this.service.saveTrackCandidate(data);
     return { message: 'Track candidate saved successfully' };
   }

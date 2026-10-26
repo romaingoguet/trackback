@@ -15,6 +15,7 @@
     "test:e2e": "vitest run -c vitest.config.e2e.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^10.4.4",
     "@nestjs/core": "^10.4.4",
     "@nestjs/platform-express": "^10.4.4",
@@ -23,7 +24,8 @@
     "dotenv": "^18.0.9",
     "node-fetch": "^3.3.2",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "youtubei.js": "^18.3.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",
