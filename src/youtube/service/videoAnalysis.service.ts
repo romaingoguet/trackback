@@ -45,6 +45,10 @@ export class VideoAnalysisService {
         this.fetchComments(videoId),
       ]);
 
+      const filteredComments = this.filterComments(commentsResponse);
+
+      console.log(filteredComments)
+
       return {
         id: videoData.id || '',
         url: url,
@@ -58,13 +62,23 @@ export class VideoAnalysisService {
         channelTitle: videoData.snippet?.channelTitle || '',
         channelId: videoData.snippet?.channelId || '',
         thumbnailUrl: this.getBestThumbnail(videoData.snippet?.thumbnails),
-        comments: (commentsResponse.items || []).map((item: any) => this.mapComment(item)),
+        comments: filteredComments,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('[VideoAnalysisService] Failed to analyze video:', errorMsg);
       throw new Error(`Failed to analyze YouTube video: ${errorMsg}`);
     }
+  }
+
+
+  filterComments(commentsResponse: any): TopComment[] {
+    const formattedComments: TopComment[] = (commentsResponse.items || []).map((item: any) => this.mapComment(item));
+    return formattedComments.filter(comment => {
+      return this.keywords.some(keyword =>
+        comment.textDisplay.toLowerCase().includes(keyword.toLowerCase())
+      );
+    });
   }
 
   async getContextById(videoId: string): Promise<any> {
@@ -88,6 +102,8 @@ export class VideoAnalysisService {
     const data = await response.json();
     return data.items ? data.items[0] : {};
   }
+
+  private readonly keywords = ['track', 'song', 'music', 'artist', '@', ':', 'timestamp', 'time', 'unid', 'uid'];
 
   private async fetchComments(videoId: string): Promise<any> {
     const params = new URLSearchParams({
