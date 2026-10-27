@@ -97,7 +97,8 @@ export class VideoAnalysisService {
       textFormat: 'plainText',
       key: this.apiKey,
     });
-    const urlStr = `${this.baseApiUrl}/comments?${params.toString()}`;
+    const urlStr = `${this.baseApiUrl}/commentThreads?${params.toString()}`;
+    console.log(urlStr)
 
     try {
       const response = await this.retryRequest(urlStr);
@@ -117,10 +118,10 @@ export class VideoAnalysisService {
   private extractVideoId(url: string): string | null {
     const match1 = url.match(/(?:youtube\.com\/watch\?v=)([^&\s]+)/);
     if (match1 && match1[1]) return match1[1].trim();
-    
+
     const match2 = url.match(/youtu\.be\/([^?\s]+)/);
     if (match2 && match2[1]) return match2[1].trim();
-    
+
     const match3 = url.match(/\/embed\/([^"\s]+)/);
     if (match3 && match3[1]) return match3[1].trim();
 
@@ -146,7 +147,7 @@ export class VideoAnalysisService {
   private mapComment(item: any): TopComment {
     const snippet = item.snippet || {};
     let textDisplay = '';
-    
+
     if (snippet.textDisplay) {
       textDisplay = snippet.textDisplay;
     } else if (snippet.topLevelComment?.snippet?.textDisplay) {
@@ -163,8 +164,10 @@ export class VideoAnalysisService {
     };
   }
 
-  private isCacheExpired(item: { cachedAt: number }): boolean {
-    return Date.now() - item.cachedAt > (60 * 5) * 1000;
+  private isCacheExpired(_item: { cachedAt: number }): boolean {
+
+    return true;
+    //return Date.now() - item.cachedAt > (60 * 5) * 1000;
   }
 
   private async retryRequest(url: string): Promise<any> {
