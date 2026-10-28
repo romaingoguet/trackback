@@ -63,6 +63,7 @@ export class FindService {
         channelTitle: videoContext.channelTitle || '',
         viewCount: videoContext.viewCount || null,
         lengthSeconds: videoContext.lengthSeconds || 0,
+        comments: videoContext.comments
       };
 
       const trackCandidates: TrackCandidate[] = [

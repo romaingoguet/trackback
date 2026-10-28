@@ -103,7 +103,7 @@ export class VideoAnalysisService {
     return data.items ? data.items[0] : {};
   }
 
-  private readonly keywords = ['track', 'song', 'music', 'artist', '@', ':', 'timestamp', 'time', 'unid', 'uid'];
+  private readonly keywords = ['tracklist', 'track', 'song', 'music', 'artist', '@', ':', 'timestamp', 'time', 'unid', 'uid'];
 
   private async fetchComments(videoId: string): Promise<any> {
     const params = new URLSearchParams({

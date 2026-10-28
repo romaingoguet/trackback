@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { UNID_PROMPT } from './core/unid.prompt';
+import { TopComment } from 'src/youtube/dto/video.dto';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
@@ -13,6 +14,7 @@ export interface ContextData {
   channelTitle: string;
   viewCount: number | null;
   lengthSeconds: number;
+  comments: TopComment[]
 }
 
 export interface TrackCandidate {
@@ -34,6 +36,8 @@ export class GeminiResponseService {
     if (!this.apiKey) {
       return { result: null, error: 'GEMINI_API_KEY not configured in .env' };
     }
+
+    console.log(`content: ${JSON.stringify(content)}`)
 
     const prompt = UNID_PROMPT + this.buildContext(content);
 
@@ -73,6 +77,7 @@ export class GeminiResponseService {
 - Duration: ${this.formatDuration(content.lengthSeconds)}
 - Views: ${content.viewCount?.toLocaleString() || 'N/A'}
 - Channel: ${content.channelTitle}
+- Comments: ${JSON.stringify(content.comments)}
 - Description:
 ${content.description || '(No description)'}
 
