@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { UNID_PROMPT } from './core/unid.prompt';
-import { TopComment } from 'src/youtube/dto/video.dto';
+import { TopComment } from '../youtube/dto/video.dto';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
@@ -37,7 +37,7 @@ export class GeminiResponseService {
       return { result: null, error: 'GEMINI_API_KEY not configured in .env' };
     }
 
-    console.log(`content: ${JSON.stringify(content)}`)
+    console.log(`content: ${content.comments[0].id} ${content.comments.length}`)
 
     const prompt = UNID_PROMPT + this.buildContext(content);
 

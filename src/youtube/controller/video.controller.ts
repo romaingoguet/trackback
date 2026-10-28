@@ -1,13 +1,11 @@
 import { Controller, Post, Get, Param, Body } from '@nestjs/common';
-import { VideoAnalysisService } from '../service/videoAnalysis.service';
 import { VideoContext } from '../dto/video.dto';
+import { FindService } from 'src/finding/src/find.service';
 
 @Controller('youtube')
 export class VideoController {
-  private readonly service: VideoAnalysisService;
 
-  constructor(service: VideoAnalysisService) {
-    this.service = service;
+  constructor(private readonly findService: FindService) {
   }
 
   @Post('analyze')
@@ -15,7 +13,7 @@ export class VideoController {
     @Body('url') url: string,
   ): Promise<{ success: boolean; video: VideoContext | null; error?: string }> {
     try {
-      const video = await this.service.analyzeVideo(url);
+      const video = await this.findService.analyzeVideo(url);
       return { success: true, video };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -28,7 +26,7 @@ export class VideoController {
     @Param('id') id: string,
   ): Promise<{ success: boolean; video: VideoContext | null; error?: string }> {
     try {
-      const video = await this.service.getContextById(id);
+      const video = await this.findService.getContextById(id);
       return { success: true, video };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -39,7 +37,7 @@ export class VideoController {
   @Get(':id/description')
   async getDescription(@Param('id') id: string): Promise<string> {
     try {
-      const { description } = await this.service.getContextById(id);
+      const { description } = await this.findService.getContextById(id);
       return description || '';
     } catch (error) {
       throw new Error(`Failed to get video description: ${error}`);
@@ -49,7 +47,7 @@ export class VideoController {
   @Get(':id/length')
   async getLength(@Param('id') id: string): Promise<number> {
     try {
-      const { lengthSeconds } = await this.service.getContextById(id);
+      const { lengthSeconds } = await this.findService.getContextById(id);
       return lengthSeconds || 0;
     } catch (error) {
       throw new Error(`Failed to get video length: ${error}`);
@@ -61,7 +59,7 @@ export class VideoController {
     @Param('id') id: string,
   ): Promise<{ comments: VideoContext['comments']; error?: string }> {
     try {
-      const video = await this.service.getContextById(id);
+      const video = await this.findService.getContextById(id);
       return { comments: video.comments };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error), comments: [] };

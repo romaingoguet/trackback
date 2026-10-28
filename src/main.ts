@@ -4,7 +4,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SupabaseService } from './core/supabase.service';
 import { GeminiService } from './finding/gemini.service';
-import { VideoAnalysisService } from './youtube/service/videoAnalysis.service';
 import { join } from 'path';
 
 async function bootstrap() {
@@ -32,18 +31,6 @@ async function bootstrap() {
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`❌ Failed to connect to Gemini: ${errorMsg}`);
-  }
-
-  // Initialize VideoAnalysisService singleton
-  try {
-    const { YouTube } = await import('youtubei.js');
-    const youtube = new YouTube(process.env.YOUTUBE_API_KEY!);
-    VideoAnalysisService.setInstance(youtube);
-    console.log('✅ YouTube API initialized');
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`❌ Failed to initialize YouTube API: ${errorMsg}`);
-    console.log('   Some features requiring YouTube API may be unavailable.');
   }
 
   // Enable CORS for all origins (for development)
